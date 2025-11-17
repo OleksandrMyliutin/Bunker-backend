@@ -4,34 +4,45 @@ import { Server } from "socket.io";
 import cors from "cors";
 
 const app = express();
-app.use(cors());
+
+app.use(cors({
+  origin: "https://bunker-xi-sepia.vercel.app", // твій фронтенд
+  methods: ["GET", "POST"],
+  credentials: true
+}));
+
+// Health-check (ОБОВʼЯЗКОВО для Render)
+app.get("/", (req, res) => {
+  res.send("Backend is running");
+});
 
 const server = createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // Інакше фронт не підʼєднається
+    origin: "https://bunker-xi-sepia.vercel.app",
+    methods: ["GET", "POST"],
+    credentials: true
   },
+  transports: ["websocket"] // мобільний MUST-HAVE
 });
 
-// Тимчасове зберігання кімнат у пам'яті (нормально для Render FREE)
+// Кімнати
 const rooms = {};
 
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 
-  // створення кімнати
   socket.on("createRoom", ({ roomId, nickname }) => {
     rooms[roomId] = {
       host: nickname,
-      players: [nickname]
+      players: [nickname],
     };
 
     socket.join(roomId);
     socket.emit("roomCreated", { roomId });
   });
 
-  // приєднання до кімнати
   socket.on("joinRoom", ({ roomId, nickname }) => {
     if (!rooms[roomId]) {
       socket.emit("roomNotFound");
@@ -39,7 +50,6 @@ io.on("connection", (socket) => {
     }
 
     rooms[roomId].players.push(nickname);
-
     socket.join(roomId);
 
     io.to(roomId).emit("playerJoined", {
@@ -54,7 +64,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// порт для Render
 const PORT = process.env.PORT || 10000;
 
 server.listen(PORT, () => {
